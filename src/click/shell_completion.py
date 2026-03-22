@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import collections.abc as cabc
+import io
 import os
 import re
 import typing as t
 from gettext import gettext as _
 
+from ._compat import _default_text_stdout
+from ._compat import WIN
 from .core import Argument
 from .core import Command
 from .core import Context
@@ -14,6 +17,42 @@ from .core import Option
 from .core import Parameter
 from .core import ParameterSource
 from .utils import echo
+
+
+def _emit_shell_completion_text(message: str) -> None:
+    r"""Write *message* and a final newline to stdout using ``\n`` only.
+
+    Text-mode stdout on Windows translates newlines to ``\r\n``.  Shell
+    users often capture completion output (``eval "$(cmd _COMPLETE=...)"``)
+    and run it in bash, zsh, or fish; a carriage return inside the
+    script breaks parsing (for example *parse error near \`elif'* in zsh
+    when ``fi`` is read as ``fi\r``).
+
+    Uses :meth:`~io.TextIOWrapper.reconfigure` when available so lines are
+    written as LF without bypassing the active text stream (writing raw
+    bytes to ``stream.buffer`` would desynchronize a ``TextIOWrapper``).
+    """
+    text = message.replace("\r\n", "\n").replace("\r", "\n") + "\n"
+    file = _default_text_stdout()
+    if file is None:
+        return
+
+    reconfigured = False
+    if WIN and isinstance(file, io.TextIOWrapper):
+        try:
+            file.reconfigure(newline="\n")
+            reconfigured = True
+        except (AttributeError, OSError, ValueError):
+            pass
+    try:
+        file.write(text)
+        file.flush()
+    finally:
+        if reconfigured:
+            try:
+                file.reconfigure(newline=None)
+            except (AttributeError, OSError, ValueError):
+                pass
 
 
 def shell_complete(
@@ -44,11 +83,11 @@ def shell_complete(
     comp = comp_cls(cli, ctx_args, prog_name, complete_var)
 
     if instruction == "source":
-        echo(comp.source())
+        _emit_shell_completion_text(comp.source())
         return 0
 
     if instruction == "complete":
-        echo(comp.complete())
+        _emit_shell_completion_text(comp.complete())
         return 0
 
     return 1

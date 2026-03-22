@@ -335,6 +335,26 @@ def test_completion_item_data():
     assert c.b is None
 
 
+@pytest.mark.usefixtures("_patch_for_completion")
+def test_completion_emits_lf_only(runner):
+    """Shell eval breaks if Windows Python writes CRLF into sourced scripts."""
+    cli = Group("cli", commands=[Command("a"), Command("b", help="bee")])
+    source = runner.invoke(cli, env={"_CLI_COMPLETE": "zsh_source"})
+    assert b"\r" not in source.stdout_bytes
+    assert source.stdout_bytes.endswith(b"\n")
+
+    complete = runner.invoke(
+        cli,
+        env={
+            "_CLI_COMPLETE": "zsh_complete",
+            "COMP_WORDS": "",
+            "COMP_CWORD": "0",
+        },
+    )
+    assert b"\r" not in complete.stdout_bytes
+    assert complete.stdout_bytes.endswith(b"\n")
+
+
 @pytest.fixture()
 def _patch_for_completion(monkeypatch):
     monkeypatch.setattr(
