@@ -1,0 +1,15 @@
+name: Self-hosted placeholder
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  echo-test:
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - name: Placeholder
+        run: echo "Self-hosted runner OK"
